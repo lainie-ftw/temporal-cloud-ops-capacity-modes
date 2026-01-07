@@ -147,3 +147,13 @@ cython_debug/
 # OS
 .DS_Store
 Thumbs.db
+
+# Project specific - Temporal certificates and keys
+*.pem
+*.key
+*.crt
+*.cer
+
+# Project specific - Environment files
+.env.local
+.env.production
