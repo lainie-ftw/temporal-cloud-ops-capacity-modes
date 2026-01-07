@@ -74,11 +74,6 @@ Using uv (recommended):
 uv sync
 ```
 
-Or using pip:
-```bash
-pip install -e .
-```
-
 3. **Configure environment variables:**
 
 Copy the example environment file and fill in your credentials:
@@ -87,38 +82,7 @@ Copy the example environment file and fill in your credentials:
 cp .env.example .env
 ```
 
-Edit `.env` with your settings:
-
-**Option 1: API Key Authentication (Recommended - Simpler)**
-```bash
-# Required settings
-TEMPORAL_ADDRESS=your-namespace.account.tmprl.cloud:7233
-TEMPORAL_NAMESPACE=your-namespace
-TEMPORAL_API_KEY=your-namespace-api-key
-TEMPORAL_CLOUD_OPS_API_KEY=your-cloud-ops-api-key
-
-# Optional settings
-DEFAULT_TRU_COUNT=5
-MIN_ACTIONS_THRESHOLD=100
-SLACK_WEBHOOK_URL=https://hooks.slack.com/services/YOUR/WEBHOOK/URL
-DRY_RUN_MODE=false
-```
-
-**Option 2: mTLS Certificate Authentication (Alternative)**
-```bash
-# Required settings
-TEMPORAL_ADDRESS=your-namespace.account.tmprl.cloud:7233
-TEMPORAL_NAMESPACE=your-namespace
-TEMPORAL_CERT_PATH=/path/to/client.pem
-TEMPORAL_KEY_PATH=/path/to/client-key.pem
-TEMPORAL_CLOUD_OPS_API_KEY=your-cloud-ops-api-key
-
-# Optional settings
-DEFAULT_TRU_COUNT=5
-MIN_ACTIONS_THRESHOLD=100
-SLACK_WEBHOOK_URL=https://hooks.slack.com/services/YOUR/WEBHOOK/URL
-DRY_RUN_MODE=false
-```
+Edit `.env` with your info and API keys.
 
 ## Configuration
 
@@ -139,17 +103,6 @@ DRY_RUN_MODE=false
 | `NAMESPACE_ALLOWLIST` | No | - | Comma-separated list of namespaces to manage |
 | `NAMESPACE_DENYLIST` | No | - | Comma-separated list of namespaces to exclude |
 | `TASK_QUEUE` | No | capacity-management-task-queue | Task queue name |
-
-### Getting Cloud Ops API Credentials
-
-1. Go to [cloud.temporal.io](https://cloud.temporal.io)
-2. Navigate to Settings → API Keys
-3. Create a new API key with appropriate permissions
-4. Save the key securely (you won't be able to see it again)
-
-### Getting mTLS Certificates
-
-Follow the [Temporal Cloud documentation](https://docs.temporal.io/cloud/certificates) to generate or download your mTLS certificates.
 
 ## Usage
 
