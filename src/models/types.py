@@ -103,10 +103,18 @@ class NamespaceRecommendation:
     action_limit: float
     action_count: float
     recommended_trus: int
+    current_capacity_mode: str  # "provisioned" or "on-demand"
+    current_trus: Optional[int]  # Current TRU count if provisioned
+    recommended_capacity_mode: str  # "provisioned" or "on-demand"
 
     def __str__(self) -> str:
         """String representation."""
+        current_tru_str = f"{self.current_trus} TRUs" if self.current_trus else "N/A"
+        recommended_tru_str = f"{self.recommended_trus} TRUs" if self.recommended_capacity_mode == "provisioned" else "N/A"
+        
         return (
-            f"{self.namespace}: APS limit={self.action_limit:.0f}, "
-            f"Current APS={self.action_count:.0f}, Recommended TRUs={self.recommended_trus}"
+            f"{self.namespace}: "
+            f"Current Mode={self.current_capacity_mode} ({current_tru_str}), "
+            f"Recommended Mode={self.recommended_capacity_mode} ({recommended_tru_str}), "
+            f"APS limit={self.action_limit:.0f}, Current APS={self.action_count:.0f}"
         )

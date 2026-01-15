@@ -8,7 +8,7 @@ from temporalio import activity
 from ..cloud_ops_client import CloudOpsClient
 from ..openmetrics_client import OpenMetricsClient
 from ..config import get_settings
-from ..models.types import NamespaceInfo, NamespaceMetrics, NamespaceRecommendation
+from ..models.types import NamespaceInfo, NamespaceMetrics, NamespaceRecommendation, ProvisioningState
 
 logger = logging.getLogger(__name__)
 
@@ -103,7 +103,8 @@ async def get_all_namespace_metrics() -> list[NamespaceRecommendation]:
     """Get metrics for all namespaces in a single API call.
 
     This activity makes ONE API call to fetch action limit and action count
-    metrics for all namespaces, then calculates recommended TRUs for each.
+    metrics for all namespaces, then fetches current capacity mode per namespace
+    from Cloud Ops API, and calculates recommended TRUs and capacity mode.
 
     Returns:
         List of NamespaceRecommendation objects with metrics and recommendations
@@ -115,14 +116,19 @@ async def get_all_namespace_metrics() -> list[NamespaceRecommendation]:
     
     activity.logger.info("Activity: get_all_namespace_metrics started")
     
-    client = OpenMetricsClient(
+    metrics_client = OpenMetricsClient(
         api_key=settings.temporal_cloud_metrics_api_key,
         base_url=settings.cloud_metrics_api_base_url,
     )
     
+    cloud_ops_client = CloudOpsClient(
+        api_key=settings.temporal_cloud_ops_api_key,
+        base_url=settings.cloud_ops_api_base_url,
+    )
+    
     try:
         # Make single API call to get all namespace metrics
-        metrics_by_namespace = await client.get_all_namespace_metrics()
+        metrics_by_namespace = await metrics_client.get_all_namespace_metrics()
         
         activity.logger.info(
             f"Retrieved metrics for {len(metrics_by_namespace)} namespaces"
@@ -130,8 +136,8 @@ async def get_all_namespace_metrics() -> list[NamespaceRecommendation]:
         
         # Convert to NamespaceRecommendation objects
         recommendations = []
+        processed_count = 0
 
-        # TODO: Heartbeat after X number of namespaces
         for namespace, metrics in metrics_by_namespace.items():
             # Filter based on allow/deny lists
             if not settings.should_manage_namespace(namespace):
@@ -141,16 +147,53 @@ async def get_all_namespace_metrics() -> list[NamespaceRecommendation]:
             action_limit = metrics.get('action_limit', 0.0)
             action_count = metrics.get('action_count', 0.0)
             
-            # Calculate recommended TRUs (best guess at how this could work - hard to test without namespaces that are doing a lot!)
+            # Calculate recommended TRUs
             recommended_trus = _calculate_recommended_trus(action_limit, action_count)
+            
+            # Determine recommended capacity mode based on recommended TRUs
+            if recommended_trus == 0:
+                recommended_capacity_mode = "on-demand"
+            else:
+                recommended_capacity_mode = "provisioned"
+            
+            # Get current capacity mode from Cloud Ops API
+            try:
+                namespace_info = await cloud_ops_client.get_namespace_info(namespace)
+                if namespace_info:
+                    if namespace_info.provisioning_state == ProvisioningState.ENABLED:
+                        current_capacity_mode = "provisioned"
+                        current_trus = namespace_info.current_tru_count
+                    else:
+                        current_capacity_mode = "on-demand"
+                        current_trus = None
+                else:
+                    # Namespace not found - use defaults
+                    current_capacity_mode = "on-demand"
+                    current_trus = None
+                    activity.logger.warning(f"Namespace {namespace} not found in Cloud Ops API")
+            except Exception as e:
+                # Log error but continue with defaults
+                activity.logger.error(f"Failed to get capacity mode for {namespace}: {e}")
+                current_capacity_mode = "on-demand"
+                current_trus = None
             
             recommendation = NamespaceRecommendation(
                 namespace=namespace,
                 action_limit=action_limit,
                 action_count=action_count,
                 recommended_trus=recommended_trus,
+                current_capacity_mode=current_capacity_mode,
+                current_trus=current_trus,
+                recommended_capacity_mode=recommended_capacity_mode,
             )
             recommendations.append(recommendation)
+            
+            processed_count += 1
+            
+            # Send heartbeat every 5 namespaces
+            if processed_count % 5 == 0:
+                activity.heartbeat(f"Processed {processed_count}/{len(metrics_by_namespace)} namespaces")
+                activity.logger.info(f"Heartbeat: Processed {processed_count}/{len(metrics_by_namespace)} namespaces")
             
             activity.logger.debug(str(recommendation))
         
@@ -165,7 +208,8 @@ async def get_all_namespace_metrics() -> list[NamespaceRecommendation]:
         activity.logger.error(f"Failed to get all namespace metrics: {e}")
         raise
     finally:
-        await client.close()
+        await metrics_client.close()
+        await cloud_ops_client.close()
 
 
 def calculate_minimum_charged_aps(trus: int) -> int:
@@ -228,25 +272,18 @@ def _calculate_recommended_trus(action_limit: float, action_count: float) -> int
     
     # Scale down: if current usage is below minimum charged threshold
     if action_count < min_charged:
-        # Calculate optimal TRUs
+        # Check if usage is below base capacity - if so, recommend on-demand
+        if action_count <= max_aps_per_tru:
+            return 0
+        
+        # Calculate optimal TRUs for usage above base capacity
         # We want: action_count >= (optimal_trus - 1) * 100
         # So: optimal_trus <= (action_count / 100) + 1
         optimal_trus = math.floor(action_count / min_aps_per_additional_tru) + 1
         
-        # Don't scale down too aggressively - at most reduce by 1 TRU per check
-        next_trus = max(optimal_trus, current_trus - 1)
-        
-        # If we'd drop to 1 TRU or below, check if we need provisioning at all
-        if next_trus <= 1:
-            # Only stay provisioned if using > base capacity (500 APS)
-            if action_count > max_aps_per_tru:
-                # Need at least 2 TRUs
-                return 2
-            else:
-                # Base capacity is sufficient - disable provisioning
-                return 0
-        
-        return next_trus
+        # Directly recommend the optimal TRU count (not gradual)
+        # Never recommend 1 TRU (same as 0 TRUs)
+        return max(2, optimal_trus)
     
     # No change needed - in the efficient zone
     return current_trus

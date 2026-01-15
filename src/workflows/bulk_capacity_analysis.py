@@ -18,12 +18,12 @@ class BulkCapacityAnalysisWorkflow:
     """Workflow that analyzes capacity for all namespaces in a single API call.
 
     This workflow:
-    1. Makes ONE API call to get action limit and action count for all namespaces
+    1. Makes one Metrics API call to get action limit and action count for all namespaces
     2. Calculates recommended TRUs for each namespace
-    3. Returns a list of recommendations
+    3. Makes a Cloud Ops API call per namespace to get the current capacity mode and, if applicable, current number of TRUs
+    4. Returns a list of recommendations
     
-    This is a simpler, read-only workflow compared to CapacityManagementWorkflow.
-    It doesn't take any provisioning actions, just provides analysis.
+    This workflow doesn't take any action on the namespaces, it just provides info and recommendations.
     """
 
     @workflow.run
@@ -40,6 +40,7 @@ class BulkCapacityAnalysisWorkflow:
             recommendations = await workflow.execute_activity(
                 get_all_namespace_metrics,
                 start_to_close_timeout=timedelta(minutes=5),
+                heartbeat_timeout=timedelta(seconds=30),
                 retry_policy=RetryPolicy(
                     initial_interval=timedelta(seconds=1),
                     maximum_interval=timedelta(seconds=30),
