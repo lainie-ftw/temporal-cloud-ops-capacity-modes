@@ -107,6 +107,6 @@ class NamespaceRecommendation:
     def __str__(self) -> str:
         """String representation."""
         return (
-            f"{self.namespace}: limit={self.action_limit:.0f}, "
-            f"count={self.action_count:.0f}, recommended_trus={self.recommended_trus}"
+            f"{self.namespace}: APS limit={self.action_limit:.0f}, "
+            f"Current APS={self.action_count:.0f}, Recommended TRUs={self.recommended_trus}"
         )

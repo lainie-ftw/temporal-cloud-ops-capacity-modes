@@ -5,7 +5,12 @@ import logging
 import sys
 from pathlib import Path
 
-from temporalio.client import Client, TLSConfig
+from dotenv import load_dotenv
+from temporalio.client import Client
+from temporalio.envconfig import ClientConfig
+
+# Load environment variables from .env file
+load_dotenv()
 
 # Add parent directory to path for imports
 sys.path.insert(0, str(Path(__file__).parent.parent))
@@ -29,44 +34,22 @@ async def main():
     # Load settings
     try:
         settings = get_settings()
-        settings.validate_auth_config()
     except Exception as e:
         logger.error(f"Failed to load settings: {e}")
         logger.error("Please ensure all required environment variables are set")
         sys.exit(1)
 
     logger.info("Manual workflow execution")
-    logger.info(f"Namespace: {settings.temporal_namespace}")
     logger.info(f"Dry run mode: {settings.dry_run_mode}")
 
-    # Configure authentication
+    # Connect to Temporal using environment configuration
     try:
-        if settings.use_api_key_auth():
-            logger.info("Using API key authentication")
-            client = await Client.connect(
-                settings.temporal_address,
-                namespace=settings.temporal_namespace,
-                api_key=settings.temporal_api_key,
-            )
-        else:
-            logger.info("Using mTLS certificate authentication")
-            with open(settings.temporal_cert_path, "rb") as f:
-                client_cert = f.read()
-            with open(settings.temporal_key_path, "rb") as f:
-                client_key = f.read()
-
-            tls_config = TLSConfig(
-                client_cert=client_cert,
-                client_private_key=client_key,
-            )
-            
-            client = await Client.connect(
-                settings.temporal_address,
-                namespace=settings.temporal_namespace,
-                tls=tls_config,
-            )
+        connect_config = ClientConfig.load_client_connect_config()
+        logger.info(f"Connecting to Temporal at {connect_config.get('target_host')}")
+        logger.info(f"Namespace: {connect_config.get('namespace')}")
         
-        logger.info(f"Connected to Temporal at {settings.temporal_address}")
+        client = await Client.connect(**connect_config)
+        logger.info("Successfully connected to Temporal")
     except Exception as e:
         logger.error(f"Failed to connect to Temporal: {e}")
         sys.exit(1)

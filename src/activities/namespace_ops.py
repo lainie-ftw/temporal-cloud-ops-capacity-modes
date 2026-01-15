@@ -1,6 +1,7 @@
 """Activities for namespace operations."""
 
 import logging
+import math
 
 from temporalio import activity
 
@@ -129,6 +130,8 @@ async def get_all_namespace_metrics() -> list[NamespaceRecommendation]:
         
         # Convert to NamespaceRecommendation objects
         recommendations = []
+
+        # TODO: Heartbeat after X number of namespaces
         for namespace, metrics in metrics_by_namespace.items():
             # Filter based on allow/deny lists
             if not settings.should_manage_namespace(namespace):
@@ -138,8 +141,7 @@ async def get_all_namespace_metrics() -> list[NamespaceRecommendation]:
             action_limit = metrics.get('action_limit', 0.0)
             action_count = metrics.get('action_count', 0.0)
             
-            # Calculate recommended TRUs (stubbed for now)
-            # TODO: Implement actual TRU recommendation logic
+            # Calculate recommended TRUs (best guess at how this could work - hard to test without namespaces that are doing a lot!)
             recommended_trus = _calculate_recommended_trus(action_limit, action_count)
             
             recommendation = NamespaceRecommendation(
@@ -166,24 +168,85 @@ async def get_all_namespace_metrics() -> list[NamespaceRecommendation]:
         await client.close()
 
 
+def calculate_minimum_charged_aps(trus: int) -> int:
+    """
+    Calculate the minimum APS charged for a given number of TRUs.
+    
+    Args:
+        trus: Number of TRUs provisioned
+        
+    Returns:
+        Minimum APS that will be charged
+    """
+    if trus == 0:
+        return 0
+    if trus == 1:
+        return 0  # First TRU has no minimum
+    return (trus - 1) * 100  # Each additional TRU has 100 APS minimum
+
 def _calculate_recommended_trus(action_limit: float, action_count: float) -> int:
     """Calculate recommended number of TRUs based on metrics.
 
-    This is a stubbed implementation that returns a placeholder value.
+    Note: 1 TRU is equivalent to 0 TRUs (both provide 500 APS base capacity).
+    This function will never recommend 1 TRU - it jumps from 0 to 2+ TRUs.
     
     Args:
         action_limit: The action limit for the namespace
         action_count: The current action count for the namespace
         
     Returns:
-        Recommended number of TRUs (stubbed to return 5)
+        Recommended number of TRUs (0 or 2+, never 1)
     """
-    # TODO: Implement actual TRU recommendation logic
-    # This could consider:
-    # - Current usage vs limit ratio
-    # - Historical trends
-    # - Growth projections
-    # - Cost optimization targets
+    max_aps_per_tru = 500
+    min_aps_per_additional_tru = 100
     
-    # For now, return a stubbed value
-    return 5
+    # Calculate current TRUs from action_limit
+    current_trus = math.floor(action_limit / max_aps_per_tru)
+    
+    # Treat 1 TRU as equivalent to 0 TRUs (same capacity)
+    if current_trus <= 1:
+        current_trus = 0
+    
+    # If no provisioning currently enabled (0 or 1 TRU)
+    if current_trus == 0:
+        # Only enable if we need more than base capacity (500 APS)
+        if action_count > max_aps_per_tru:
+            # Need provisioned capacity - round up to nearest TRU (minimum 2)
+            return max(2, math.ceil(action_count / max_aps_per_tru))
+        else:
+            # Base capacity is sufficient
+            return 0
+    
+    # Current capacity metrics
+    max_capacity = current_trus * max_aps_per_tru
+    utilization_percent = (action_count / max_capacity) * 100
+    min_charged = calculate_minimum_charged_aps(current_trus)
+    
+    # Scale up: if using >= 80% of capacity, add 1 TRU
+    if utilization_percent >= 80:
+        return current_trus + 1
+    
+    # Scale down: if current usage is below minimum charged threshold
+    if action_count < min_charged:
+        # Calculate optimal TRUs
+        # We want: action_count >= (optimal_trus - 1) * 100
+        # So: optimal_trus <= (action_count / 100) + 1
+        optimal_trus = math.floor(action_count / min_aps_per_additional_tru) + 1
+        
+        # Don't scale down too aggressively - at most reduce by 1 TRU per check
+        next_trus = max(optimal_trus, current_trus - 1)
+        
+        # If we'd drop to 1 TRU or below, check if we need provisioning at all
+        if next_trus <= 1:
+            # Only stay provisioned if using > base capacity (500 APS)
+            if action_count > max_aps_per_tru:
+                # Need at least 2 TRUs
+                return 2
+            else:
+                # Base capacity is sufficient - disable provisioning
+                return 0
+        
+        return next_trus
+    
+    # No change needed - in the efficient zone
+    return current_trus

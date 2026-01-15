@@ -63,7 +63,6 @@ The workflow runs on a schedule (default: 45 minutes past every hour) and perfor
   - Namespace API key (recommended) OR mTLS certificates for authentication - this should be for the namespace where THIS workflow will run
   - Cloud Ops API key for getting info about the namespaces in the account and potentially changing capacity modes. This should be tied to a service account with Global Admin account-level access. [documentation](https://docs.temporal.io/ops)
   - Metrics Read Only API key for getting APS utilization information about namespaces. This should be tied to a service account with Metrics Read Only access. [documentation](https://docs.temporal.io/production-deployment/cloud/metrics/openmetrics/api-reference)
-- (Optional) Slack webhook for notifications
 
 ## Installation
 
@@ -91,31 +90,6 @@ cp .env.example .env
 
 Edit `.env` with your info and API keys.
 
-## Configuration
-
-### Environment Variables
-
-| Variable | Required | Default | Description |
-|----------|----------|---------|-------------|
-| `TEMPORAL_ADDRESS` | Yes | - | Temporal Cloud address (e.g., namespace.account.tmprl.cloud:7233) |
-| `TEMPORAL_NAMESPACE` | Yes | - | Namespace where this workflow runs |
-| `TEMPORAL_API_KEY` | Yes* | - | Namespace API key for authentication |
-| `TEMPORAL_CERT_PATH` | Yes* | - | Path to mTLS certificate file (alternative to API key) |
-| `TEMPORAL_KEY_PATH` | Yes* | - | Path to mTLS private key file (alternative to API key) |
-| `TEMPORAL_CLOUD_OPS_API_KEY` | Yes | - | Cloud Ops API key for provisioning operations |
-| `CLOUD_OPS_API_BASE_URL` | No | https://saas-api.tmprl.cloud | Cloud Ops API base URL |
-| `TEMPORAL_CLOUD_METRICS_API_KEY` | Yes | - | Metrics Read-Only API key for OpenMetrics |
-| `CLOUD_METRICS_API_BASE_URL` | No | https://metrics.temporal.io | OpenMetrics API base URL |
-| `DEFAULT_TRU_COUNT` | No | 5 | TRUs to enable when turning on capacity |
-| `MIN_ACTIONS_THRESHOLD` | No | 100 | Min actions/hour to keep capacity enabled |
-| `SLACK_WEBHOOK_URL` | No | - | Slack webhook for notifications |
-| `DRY_RUN_MODE` | No | false | Preview mode without making changes |
-| `NAMESPACE_ALLOWLIST` | No | - | Comma-separated list of namespaces to manage |
-| `NAMESPACE_DENYLIST` | No | - | Comma-separated list of namespaces to exclude |
-| `TASK_QUEUE` | No | capacity-management-task-queue | Task queue name |
-
-*Either `TEMPORAL_API_KEY` OR both `TEMPORAL_CERT_PATH` and `TEMPORAL_KEY_PATH` are required.
-
 ## Usage
 
 ### 1. Start the Worker
@@ -123,7 +97,7 @@ Edit `.env` with your info and API keys.
 The worker processes workflow and activity tasks. It must be running for the automation to work:
 
 ```bash
-python scripts/worker.py
+uv run python scripts/worker.py
 ```
 
 The worker will connect to Temporal Cloud and wait for tasks. Keep it running in a terminal or deploy it as a service.
@@ -133,7 +107,7 @@ The worker will connect to Temporal Cloud and wait for tasks. Keep it running in
 Create the Temporal Schedule that triggers the workflow every hour:
 
 ```bash
-python scripts/create_schedule.py
+uv run python scripts/create_schedule.py
 ```
 
 This creates a schedule that runs at 45 minutes past every hour (e.g., 1:45, 2:45, 3:45, etc.).
@@ -193,29 +167,6 @@ temporal workflow query \
 
 ## Customization
 
-### Adjusting Decision Logic
-
-To customize when capacity is enabled/disabled, modify the thresholds:
-
-```bash
-# More conservative (keep capacity enabled longer)
-MIN_ACTIONS_THRESHOLD=500  # Higher threshold
-
-# More aggressive (disable capacity sooner)
-MIN_ACTIONS_THRESHOLD=50   # Lower threshold
-```
-
-### Customizing TRU Count
-
-Adjust the number of TRUs enabled:
-
-```bash
-# Start with more capacity
-DEFAULT_TRU_COUNT=10
-
-# Start with less capacity
-DEFAULT_TRU_COUNT=3
-```
 
 ### Modifying the Schedule
 
@@ -238,32 +189,6 @@ calendars=[
     )
 ]
 ```
-
-## Cost Savings Example
-
-### Scenario
-
-- You have 10 namespaces
-- Each has 5 TRUs enabled ($X per TRU per hour)
-- Namespaces are only actively used 8 hours per day
-
-### Without Automation
-
-- Cost: 10 namespaces × 5 TRUs × 24 hours × $X = 1,200 TRU-hours per day
-
-### With Automation
-
-- Active usage: 10 namespaces × 5 TRUs × 8 hours × $X = 400 TRU-hours per day
-- **Savings: 800 TRU-hours per day (67% reduction)**
-
-### Annual Savings
-
-Assuming $0.50 per TRU-hour:
-- Daily savings: 800 × $0.50 = $400
-- Monthly savings: ~$12,000
-- Annual savings: ~$146,000
-
-*Note: Actual costs depend on your Temporal Cloud pricing plan.*
 
 ## Features
 

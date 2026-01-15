@@ -17,29 +17,9 @@ class Settings(BaseSettings):
         extra="ignore",
     )
 
-    # Temporal Connection Settings
-    temporal_address: str = Field(
-        ...,
-        description="Temporal Cloud address (e.g., namespace.account.tmprl.cloud:7233)",
-    )
-    temporal_namespace: str = Field(
-        ...,
-        description="Temporal namespace to run this workflow in",
-    )
-    
-    # Authentication - Use either API key OR mTLS certificates
-    temporal_api_key: Optional[str] = Field(
-        default=None,
-        description="Temporal namespace API key (alternative to mTLS)",
-    )
-    temporal_cert_path: Optional[Path] = Field(
-        default=None,
-        description="Path to mTLS certificate file (alternative to API key)",
-    )
-    temporal_key_path: Optional[Path] = Field(
-        default=None,
-        description="Path to mTLS private key file (alternative to API key)",
-    )
+    # NOTE: Temporal connection settings (TEMPORAL_ADDRESS, TEMPORAL_NAMESPACE, 
+    # TEMPORAL_API_KEY, etc.) are now loaded via temporalio.envconfig.ClientConfig
+    # See scripts for usage of ClientConfig.load_client_connect_config()
 
     # Cloud Ops API Settings
     temporal_cloud_ops_api_key: str = Field(
@@ -59,24 +39,6 @@ class Settings(BaseSettings):
     cloud_metrics_api_base_url: str = Field(
         default="https://metrics.temporal.io",
         description="Base URL for Cloud Metrics OpenMetrics API",
-    )
-
-    # Capacity Management Settings
-    default_tru_count: int = Field(
-        default=5,
-        gt=0,
-        description="Number of TRUs to enable when turning on provisioned capacity",
-    )
-    min_actions_threshold: int = Field(
-        default=100,
-        ge=0,
-        description="Minimum actions per hour to keep provisioned capacity enabled",
-    )
-
-    # Notification Settings
-    slack_webhook_url: Optional[str] = Field(
-        default=None,
-        description="Slack webhook URL for failure notifications",
     )
 
     # Operational Settings
@@ -106,45 +68,6 @@ class Settings(BaseSettings):
         if isinstance(v, str):
             return [ns.strip() for ns in v.split(",") if ns.strip()]
         return v or []
-
-    @field_validator("temporal_cert_path", "temporal_key_path")
-    @classmethod
-    def validate_path_exists(cls, v):
-        """Validate that certificate/key paths exist if provided."""
-        if v is not None and not v.exists():
-            raise ValueError(f"File not found: {v}")
-        return v
-
-    def validate_auth_config(self) -> None:
-        """Validate that at least one authentication method is configured."""
-        has_api_key = self.temporal_api_key is not None
-        has_mtls = (
-            self.temporal_cert_path is not None
-            and self.temporal_key_path is not None
-        )
-        
-        if not has_api_key and not has_mtls:
-            raise ValueError(
-                "Must provide either TEMPORAL_API_KEY or both "
-                "TEMPORAL_CERT_PATH and TEMPORAL_KEY_PATH"
-            )
-        
-        if has_mtls and (self.temporal_cert_path is None or self.temporal_key_path is None):
-            raise ValueError(
-                "If using mTLS, both TEMPORAL_CERT_PATH and "
-                "TEMPORAL_KEY_PATH must be provided"
-            )
-
-    def use_api_key_auth(self) -> bool:
-        """Check if using API key authentication."""
-        return self.temporal_api_key is not None
-
-    def use_mtls_auth(self) -> bool:
-        """Check if using mTLS authentication."""
-        return (
-            self.temporal_cert_path is not None
-            and self.temporal_key_path is not None
-        )
 
     def should_manage_namespace(self, namespace: str) -> bool:
         """Check if a namespace should be managed based on allow/deny lists."""
