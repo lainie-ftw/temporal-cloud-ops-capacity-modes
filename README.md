@@ -41,10 +41,17 @@ The workflow runs on a schedule (default: 45 minutes past every hour) and perfor
 ┌─────────────────────────────────────────────────────────────┐
 │                   Activities (Idempotent)                    │
 │  • list_namespaces() - Get all namespaces                   │
-│  • check_throttling() - Check metrics & throttling          │
+│  • check_throttling() - Check metrics via OpenMetrics API   │
 │  • disable_provisioning() - Disable APS via Cloud Ops API   │
 │  • enable_provisioning() - Enable APS via Cloud Ops API     │
 │  • send_slack_notification() - Send alerts                  │
+└────────────────────────┬────────────────────────────────────┘
+                         │
+                         ▼
+┌─────────────────────────────────────────────────────────────┐
+│                    External APIs                             │
+│  • Cloud Ops API - Namespace provisioning management        │
+│  • OpenMetrics API - Real-time metrics & throttling data    │
 └─────────────────────────────────────────────────────────────┘
 ```
 
@@ -92,10 +99,13 @@ Edit `.env` with your info and API keys.
 |----------|----------|---------|-------------|
 | `TEMPORAL_ADDRESS` | Yes | - | Temporal Cloud address (e.g., namespace.account.tmprl.cloud:7233) |
 | `TEMPORAL_NAMESPACE` | Yes | - | Namespace where this workflow runs |
-| `TEMPORAL_CERT_PATH` | Yes | - | Path to mTLS certificate file |
-| `TEMPORAL_KEY_PATH` | Yes | - | Path to mTLS private key file |
-| `TEMPORAL_CLOUD_OPS_API_KEY` | Yes | - | Cloud Ops API key |
+| `TEMPORAL_API_KEY` | Yes* | - | Namespace API key for authentication |
+| `TEMPORAL_CERT_PATH` | Yes* | - | Path to mTLS certificate file (alternative to API key) |
+| `TEMPORAL_KEY_PATH` | Yes* | - | Path to mTLS private key file (alternative to API key) |
+| `TEMPORAL_CLOUD_OPS_API_KEY` | Yes | - | Cloud Ops API key for provisioning operations |
 | `CLOUD_OPS_API_BASE_URL` | No | https://saas-api.tmprl.cloud | Cloud Ops API base URL |
+| `TEMPORAL_CLOUD_METRICS_API_KEY` | Yes | - | Metrics Read-Only API key for OpenMetrics |
+| `CLOUD_METRICS_API_BASE_URL` | No | https://metrics.temporal.io | OpenMetrics API base URL |
 | `DEFAULT_TRU_COUNT` | No | 5 | TRUs to enable when turning on capacity |
 | `MIN_ACTIONS_THRESHOLD` | No | 100 | Min actions/hour to keep capacity enabled |
 | `SLACK_WEBHOOK_URL` | No | - | Slack webhook for notifications |
@@ -103,6 +113,8 @@ Edit `.env` with your info and API keys.
 | `NAMESPACE_ALLOWLIST` | No | - | Comma-separated list of namespaces to manage |
 | `NAMESPACE_DENYLIST` | No | - | Comma-separated list of namespaces to exclude |
 | `TASK_QUEUE` | No | capacity-management-task-queue | Task queue name |
+
+*Either `TEMPORAL_API_KEY` OR both `TEMPORAL_CERT_PATH` and `TEMPORAL_KEY_PATH` are required.
 
 ## Usage
 

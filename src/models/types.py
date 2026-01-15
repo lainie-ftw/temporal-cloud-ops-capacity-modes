@@ -93,3 +93,20 @@ class WorkflowResult:
         disabled_str = f"Disabled: {len(self.namespaces_disabled)}"
         error_str = f"Errors: {len(self.errors)}"
         return f"{mode}Checked {self.total_namespaces_checked} namespaces - {enabled_str}, {disabled_str}, {error_str}"
+
+
+@dataclass
+class NamespaceRecommendation:
+    """Recommendation for a namespace with action metrics and TRU recommendation."""
+
+    namespace: str
+    action_limit: float
+    action_count: float
+    recommended_trus: int
+
+    def __str__(self) -> str:
+        """String representation."""
+        return (
+            f"{self.namespace}: limit={self.action_limit:.0f}, "
+            f"count={self.action_count:.0f}, recommended_trus={self.recommended_trus}"
+        )

@@ -1,4 +1,5 @@
-"""Worker script to run capacity management workflows and activities."""
+#!/usr/bin/env python3
+"""Script to run the BulkCapacityAnalysisWorkflow once."""
 
 import asyncio
 import logging
@@ -6,21 +7,12 @@ import sys
 from pathlib import Path
 
 from temporalio.client import Client, TLSConfig
-from temporalio.worker import Worker
 
 # Add parent directory to path for imports
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
-from src.activities import (
-    check_throttling,
-    disable_provisioning,
-    enable_provisioning,
-    get_all_namespace_metrics,
-    list_namespaces,
-    send_slack_notification,
-)
 from src.config import get_settings
-from src.workflows import BulkCapacityAnalysisWorkflow, CapacityManagementWorkflow
+from src.workflows import BulkCapacityAnalysisWorkflow
 
 # Configure logging
 logging.basicConfig(
@@ -31,7 +23,7 @@ logger = logging.getLogger(__name__)
 
 
 async def main():
-    """Start the worker to process capacity management workflows."""
+    """Run the BulkCapacityAnalysisWorkflow once."""
     # Load settings
     try:
         settings = get_settings()
@@ -41,27 +33,20 @@ async def main():
         logger.error("Please ensure all required environment variables are set")
         sys.exit(1)
 
-    logger.info(f"Starting worker for namespace: {settings.temporal_namespace}")
-    logger.info(f"Task queue: {settings.task_queue}")
-    logger.info(f"Dry run mode: {settings.dry_run_mode}")
-    
-    # Determine authentication method
-    if settings.use_api_key_auth():
-        logger.info("Using API key authentication")
-    else:
-        logger.info("Using mTLS certificate authentication")
+    logger.info("Bulk Capacity Analysis - Manual Execution")
+    logger.info(f"Namespace: {settings.temporal_namespace}")
 
     # Configure authentication
     try:
         if settings.use_api_key_auth():
-            # Use API key authentication
+            logger.info("Using API key authentication")
             client = await Client.connect(
                 settings.temporal_address,
                 namespace=settings.temporal_namespace,
                 api_key=settings.temporal_api_key,
             )
         else:
-            # Use mTLS authentication
+            logger.info("Using mTLS certificate authentication")
             with open(settings.temporal_cert_path, "rb") as f:
                 client_cert = f.read()
             with open(settings.temporal_key_path, "rb") as f:
@@ -83,30 +68,35 @@ async def main():
         logger.error(f"Failed to connect to Temporal: {e}")
         sys.exit(1)
 
-    # Create and run worker
-    worker = Worker(
-        client,
-        task_queue=settings.task_queue,
-        workflows=[CapacityManagementWorkflow, BulkCapacityAnalysisWorkflow],
-        activities=[
-            check_throttling,
-            disable_provisioning,
-            enable_provisioning,
-            get_all_namespace_metrics,
-            list_namespaces,
-            send_slack_notification,
-        ],
-    )
-
-    logger.info("Worker started, waiting for tasks...")
+    # Execute workflow
     try:
-        await worker.run()
-    except KeyboardInterrupt:
-        logger.info("Worker shutting down...")
+        logger.info("Starting BulkCapacityAnalysisWorkflow...")
+        result = await client.execute_workflow(
+            BulkCapacityAnalysisWorkflow.run,
+            id=f"bulk-capacity-analysis-{asyncio.get_event_loop().time()}",
+            task_queue=settings.task_queue,
+        )
+
+        logger.info("=" * 60)
+        logger.info("Workflow completed successfully!")
+        logger.info("=" * 60)
+        logger.info(f"Analyzed {len(result)} namespaces:")
+        logger.info("")
+        
+        for recommendation in result:
+            logger.info(f"  {recommendation}")
+
     except Exception as e:
-        logger.error(f"Worker error: {e}")
-        raise
+        logger.error(f"Workflow failed: {e}")
+        sys.exit(1)
 
 
 if __name__ == "__main__":
+    print("=" * 60)
+    print("Temporal Cloud - Bulk Capacity Analysis")
+    print("=" * 60)
+    print()
+    print("This script will execute the workflow once for testing.")
+    print("Make sure the worker is running in another terminal!")
+    print()
     asyncio.run(main())

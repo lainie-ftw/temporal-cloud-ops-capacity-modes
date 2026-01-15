@@ -51,6 +51,16 @@ class Settings(BaseSettings):
         description="Base URL for Cloud Ops API",
     )
 
+    # Cloud Metrics API Settings
+    temporal_cloud_metrics_api_key: str = Field(
+        ...,
+        description="Temporal Cloud Metrics API key for reading metrics (Metrics Read-Only role)",
+    )
+    cloud_metrics_api_base_url: str = Field(
+        default="https://metrics.temporal.io",
+        description="Base URL for Cloud Metrics OpenMetrics API",
+    )
+
     # Capacity Management Settings
     default_tru_count: int = Field(
         default=5,
