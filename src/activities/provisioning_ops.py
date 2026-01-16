@@ -45,17 +45,31 @@ async def enable_provisioning(namespace: str, tru_count: int) -> bool:
     )
     
     try:
+        # Get the namespace to retrieve current spec and resource version
+        ns_response = await client.client.get(
+            f"{client.base_url}/cloud/namespaces/{namespace}"
+        )
+        ns_response.raise_for_status()
+        ns_data = ns_response.json()
+        namespace_obj = ns_data.get("namespace", {})
+        current_spec = namespace_obj.get("spec", {})
+        resource_version = namespace_obj.get("resourceVersion")
+
         # Check current state for idempotency
-        current_info = await client.get_namespace_info(namespace)
+        capacity = namespace_obj.get("capacity", {})
+        provisioned = capacity.get("provisioned", {})
+        current_tru_count = provisioned.get("currentValue")
         
-        if current_info and current_info.current_tru_count == tru_count:
+        if current_tru_count == tru_count:
             activity.logger.info(
                 f"Namespace {namespace} already has {tru_count} TRUs enabled, skipping"
             )
             return True
         
-        # Enable provisioning
-        result = await client.enable_provisioning(namespace, tru_count)
+        # Enable provisioning with current spec and resource version
+        result = await client.enable_provisioning(
+            namespace, tru_count, current_spec, resource_version
+        )
         
         activity.logger.info(
             f"Successfully enabled provisioning for {namespace} with {tru_count} TRUs"
@@ -100,17 +114,31 @@ async def disable_provisioning(namespace: str) -> bool:
     )
     
     try:
+        # Get the namespace to retrieve current spec and resource version
+        ns_response = await client.client.get(
+            f"{client.base_url}/cloud/namespaces/{namespace}"
+        )
+        ns_response.raise_for_status()
+        ns_data = ns_response.json()
+        namespace_obj = ns_data.get("namespace", {})
+        current_spec = namespace_obj.get("spec", {})
+        resource_version = namespace_obj.get("resourceVersion")
+
         # Check current state for idempotency
-        current_info = await client.get_namespace_info(namespace)
+        capacity = namespace_obj.get("capacity", {})
+        provisioned = capacity.get("provisioned", {})
+        current_tru_count = provisioned.get("currentValue")
         
-        if current_info and current_info.current_tru_count is None:
+        if current_tru_count is None:
             activity.logger.info(
                 f"Namespace {namespace} already has provisioning disabled, skipping"
             )
             return True
         
-        # Disable provisioning
-        result = await client.disable_provisioning(namespace)
+        # Disable provisioning with current spec and resource version
+        result = await client.disable_provisioning(
+            namespace, current_spec, resource_version
+        )
         
         activity.logger.info(f"Successfully disabled provisioning for {namespace}")
         

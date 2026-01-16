@@ -32,7 +32,7 @@ async def send_slack_notification(message: str, severity: NotificationSeverity) 
     
     # If no Slack webhook is configured, skip silently
     if not settings.slack_webhook_url:
-        activity.logger.info("No Slack webhook configured, skipping notification")
+        activity.logger.info(f"No Slack webhook configured, logging notification instead: {message}")
         return False
     
     # In dry run mode, just log

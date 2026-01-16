@@ -228,6 +228,100 @@ def calculate_minimum_charged_aps(trus: int) -> int:
         return 0  # First TRU has no minimum
     return (trus - 1) * 100  # Each additional TRU has 100 APS minimum
 
+@activity.defn
+async def verify_namespace_capacity(
+    namespace: str, 
+    expected_capacity_mode: str, 
+    expected_trus: int = 0
+) -> bool:
+    """Verify that a namespace has the expected capacity configuration.
+
+    This activity checks that the namespace capacity mode matches expectations.
+    For provisioned mode, it also verifies the TRU count.
+    For on-demand mode, it verifies provisioning is disabled.
+
+    Args:
+        namespace: The namespace to verify
+        expected_capacity_mode: Expected capacity mode ("provisioned" or "on-demand")
+        expected_trus: The expected TRU count (only checked if mode is "provisioned")
+
+    Returns:
+        True if capacity is correctly configured, False otherwise
+
+    Raises:
+        Exception: If the API request fails
+    """
+    settings = get_settings()
+    
+    activity.logger.info(
+        f"Activity: verify_namespace_capacity for {namespace} "
+        f"(expected mode: {expected_capacity_mode}, expected TRUs: {expected_trus})"
+    )
+    
+    client = CloudOpsClient(
+        api_key=settings.temporal_cloud_ops_api_key,
+        base_url=settings.cloud_ops_api_base_url,
+    )
+    
+    try:
+        namespace_info = await client.get_namespace_info(namespace)
+        
+        if not namespace_info:
+            activity.logger.error(f"Namespace {namespace} not found")
+            return False
+        
+        # Check based on expected capacity mode
+        if expected_capacity_mode == "provisioned":
+            # Verify provisioning is enabled
+            if namespace_info.provisioning_state != ProvisioningState.ENABLED:
+                activity.logger.error(
+                    f"Namespace {namespace} provisioning state is "
+                    f"{namespace_info.provisioning_state}, expected ENABLED for provisioned mode"
+                )
+                return False
+            
+            # Verify TRU count matches
+            if namespace_info.current_tru_count != expected_trus:
+                activity.logger.error(
+                    f"Namespace {namespace} has {namespace_info.current_tru_count} TRUs, "
+                    f"expected {expected_trus}"
+                )
+                return False
+            
+            activity.logger.info(
+                f"Namespace {namespace} capacity verified: "
+                f"provisioned mode with {expected_trus} TRUs"
+            )
+            return True
+            
+        elif expected_capacity_mode == "on-demand":
+            # Verify provisioning is disabled
+            if namespace_info.provisioning_state != ProvisioningState.DISABLED:
+                activity.logger.error(
+                    f"Namespace {namespace} provisioning state is "
+                    f"{namespace_info.provisioning_state}, expected DISABLED for on-demand mode"
+                )
+                return False
+            
+            activity.logger.info(
+                f"Namespace {namespace} capacity verified: on-demand mode"
+            )
+            return True
+            
+        else:
+            activity.logger.error(
+                f"Invalid expected_capacity_mode: {expected_capacity_mode}. "
+                f"Must be 'provisioned' or 'on-demand'"
+            )
+            return False
+        
+    except Exception as e:
+        activity.logger.error(f"Failed to verify capacity for {namespace}: {e}")
+        raise
+    finally:
+        await client.close()
+
+
 def _calculate_recommended_trus(action_limit: float, action_count: float) -> int:
     """Calculate recommended number of TRUs based on metrics.
 

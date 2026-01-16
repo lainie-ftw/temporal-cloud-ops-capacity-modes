@@ -132,12 +132,16 @@ class CloudOpsClient:
             logger.error(f"Failed to get metrics for {namespace}: {e}")
             raise
 
-    async def enable_provisioning(self, namespace: str, tru_count: int) -> bool:
+    async def enable_provisioning(
+        self, namespace: str, tru_count: int, current_spec: dict, resource_version: str
+    ) -> bool:
         """Enable provisioned capacity for a namespace.
 
         Args:
             namespace: The namespace to enable provisioning for
             tru_count: Number of TRUs to provision
+            current_spec: The current spec of the namespace (to preserve other fields)
+            resource_version: The resource version of the namespace
 
         Returns:
             True if successful
@@ -148,25 +152,20 @@ class CloudOpsClient:
         logger.info(f"Enabling provisioning for {namespace} with {tru_count} TRUs")
 
         try:
-            # First, get the namespace to get the resourceVersion
-            ns_response = await self.client.get(
-                f"{self.base_url}/cloud/namespaces/{namespace}"
-            )
-            ns_response.raise_for_status()
-            ns_data = ns_response.json()
-            resource_version = ns_data.get("namespace", {}).get("resourceVersion")
+            # Update the capacitySpec while preserving other spec fields
+            updated_spec = current_spec.copy()
+            if "capacitySpec" not in updated_spec or updated_spec["capacitySpec"] is None:
+                updated_spec["capacitySpec"] = {}
+            else:
+                # Make a copy of capacitySpec to avoid modifying the original
+                updated_spec["capacitySpec"] = updated_spec["capacitySpec"].copy()
+            
+            updated_spec["capacitySpec"]["provisioned"] = {"value": tru_count}
+            # Remove onDemand if present, as we're switching to provisioned
+            if "onDemand" in updated_spec["capacitySpec"]:
+                del updated_spec["capacitySpec"]["onDemand"]
 
-            # Use the new capacitySpec format
-            payload = {
-                "spec": {
-                    "capacitySpec": {
-                        "provisioned": {
-                            "value": tru_count
-                        }
-                    }
-                },
-                "resourceVersion": resource_version
-            }
+            payload = {"spec": updated_spec, "resourceVersion": resource_version}
 
             response = await self.client.post(
                 f"{self.base_url}/cloud/namespaces/{namespace}",
@@ -181,11 +180,15 @@ class CloudOpsClient:
             logger.error(f"Failed to enable provisioning for {namespace}: {e}")
             raise
 
-    async def disable_provisioning(self, namespace: str) -> bool:
+    async def disable_provisioning(
+        self, namespace: str, current_spec: dict, resource_version: str
+    ) -> bool:
         """Disable provisioned capacity for a namespace.
 
         Args:
             namespace: The namespace to disable provisioning for
+            current_spec: The current spec of the namespace (to preserve other fields)
+            resource_version: The resource version of the namespace
 
         Returns:
             True if successful
@@ -196,23 +199,20 @@ class CloudOpsClient:
         logger.info(f"Disabling provisioning for {namespace}")
 
         try:
-            # First, get the namespace to get the resourceVersion
-            ns_response = await self.client.get(
-                f"{self.base_url}/cloud/namespaces/{namespace}"
-            )
-            ns_response.raise_for_status()
-            ns_data = ns_response.json()
-            resource_version = ns_data.get("namespace", {}).get("resourceVersion")
+            # Update the capacitySpec while preserving other spec fields
+            updated_spec = current_spec.copy()
+            if "capacitySpec" not in updated_spec or updated_spec["capacitySpec"] is None:
+                updated_spec["capacitySpec"] = {}
+            else:
+                # Make a copy of capacitySpec to avoid modifying the original
+                updated_spec["capacitySpec"] = updated_spec["capacitySpec"].copy()
+            
+            updated_spec["capacitySpec"]["onDemand"] = {}
+            # Remove provisioned if present, as we're switching to onDemand
+            if "provisioned" in updated_spec["capacitySpec"]:
+                del updated_spec["capacitySpec"]["provisioned"]
 
-            # Use onDemand capacity mode to disable provisioning
-            payload = {
-                "spec": {
-                    "capacitySpec": {
-                        "onDemand": {}
-                    }
-                },
-                "resourceVersion": resource_version
-            }
+            payload = {"spec": updated_spec, "resourceVersion": resource_version}
 
             response = await self.client.post(
                 f"{self.base_url}/cloud/namespaces/{namespace}",

@@ -23,9 +23,14 @@ from src.activities import (
     get_all_namespace_metrics,
     list_namespaces,
     send_slack_notification,
+    verify_namespace_capacity,
 )
 from src.config import get_settings
-from src.workflows import BulkCapacityAnalysisWorkflow, CapacityManagementWorkflow
+from src.workflows import (
+    BulkCapacityAnalysisWorkflow,
+    CapacityManagementWorkflow,
+    ScheduledCapacityChangeWorkflow,
+)
 
 # Configure logging
 logging.basicConfig(
@@ -76,7 +81,11 @@ async def main():
     worker = Worker(
         client,
         task_queue=settings.task_queue,
-        workflows=[CapacityManagementWorkflow, BulkCapacityAnalysisWorkflow],
+        workflows=[
+            CapacityManagementWorkflow,
+            BulkCapacityAnalysisWorkflow,
+            ScheduledCapacityChangeWorkflow,
+        ],
         activities=[
             check_throttling,
             disable_provisioning,
@@ -84,6 +93,7 @@ async def main():
             get_all_namespace_metrics,
             list_namespaces,
             send_slack_notification,
+            verify_namespace_capacity,
         ],
     )
 

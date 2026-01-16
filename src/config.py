@@ -61,6 +61,12 @@ class Settings(BaseSettings):
         description="Task queue name for the worker",
     )
 
+    # Notification Settings
+    slack_webhook_url: Optional[str] = Field(
+        default=None,
+        description="Slack webhook URL for sending notifications",
+    )
+
     @field_validator("namespace_allowlist", "namespace_denylist", mode="before")
     @classmethod
     def parse_comma_separated(cls, v):
