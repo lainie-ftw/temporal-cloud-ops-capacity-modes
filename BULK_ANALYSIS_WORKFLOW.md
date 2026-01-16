@@ -18,7 +18,8 @@ This approach reduces response size and improves efficiency by filtering at the 
 ### 2. Calculate Recommendations
 For each namespace returned from the API:
 - Extract action_limit and action_count metrics
-- Calculate recommended number of TRUs (currently stubbed)
+- Hit the CloudOps API to gather information about the current state of the namespace - this is one once for EACH namespace. As such, the activity heartbeats after every 5 namespaces that it processes.
+- Calculate recommended capacity mode, and, if Provisioned is recommended, recommended number of TRUs
 - Build a `NamespaceRecommendation` object
 
 ### 3. Return Results
@@ -26,82 +27,17 @@ Returns a list of `NamespaceRecommendation` objects containing:
 - `namespace` - The namespace name
 - `action_limit` - The action limit
 - `action_count` - The current action count
-- `recommended_trus` - Recommended number of TRUs (stubbed to return 5)
-
-## Data Models
-
-### NamespaceRecommendation
-```python
-@dataclass
-class NamespaceRecommendation:
-    namespace: str
-    action_limit: float
-    action_count: float
-    recommended_trus: int
-```
+- `recommended_trus` - Recommended number of TRUs
+- `current_capacity_mode` - The capacity mode currently applied to the namespace
+- `current_trus` - Current TRU count if in Provisioned Mode
+- `recommended_capacity_mode` - "provisioned" or "on-demand"
 
 ## Running the Workflow
 
 ### Using the Script
 ```bash
-python scripts/run_bulk_analysis.py
+uv run python scripts/run_bulk_analysis.py
 ```
-
-### Programmatically
-```python
-from temporalio.client import Client
-from src.workflows import BulkCapacityAnalysisWorkflow
-
-client = await Client.connect(...)
-result = await client.execute_workflow(
-    BulkCapacityAnalysisWorkflow.run,
-    id="bulk-capacity-analysis",
-    task_queue="capacity-management",
-)
-
-for recommendation in result:
-    print(f"{recommendation.namespace}: {recommendation.recommended_trus} TRUs")
-```
-
-## Worker Configuration
-
-The worker must be configured to handle this workflow. Update `scripts/worker.py`:
-
-```python
-from src.workflows import BulkCapacityAnalysisWorkflow
-
-worker = Worker(
-    client,
-    task_queue=settings.temporal_task_queue,
-    workflows=[BulkCapacityAnalysisWorkflow],
-    activities=[...],
-)
-```
-
-## Implementation Details
-
-### Activity: get_all_namespace_metrics()
-Located in `src/activities/namespace_ops.py`, this activity:
-1. Creates an OpenMetrics client
-2. Calls `client.get_all_namespace_metrics()` (single API call)
-3. Filters namespaces based on allow/deny lists
-4. Calculates recommended TRUs for each namespace
-5. Returns list of NamespaceRecommendation objects
-
-### OpenMetrics Client Enhancement
-Added `get_all_namespace_metrics()` method to `src/openmetrics_client.py`:
-- Makes API call without namespace filter
-- Parses metrics for all namespaces in response
-- Returns dictionary mapping namespace to metrics
-
-### TRU Recommendation Logic (Stubbed)
-The `_calculate_recommended_trus()` function in `namespace_ops.py` is currently stubbed to return 5.
-
-**TODO**: Implement actual TRU recommendation logic that considers:
-- Current usage vs limit ratio
-- Historical trends
-- Growth projections
-- Cost optimization targets
 
 ## Use Cases
 
@@ -109,11 +45,3 @@ The `_calculate_recommended_trus()` function in `namespace_ops.py` is currently 
 2. **Cost Analysis**: Identify namespaces that might need TRU adjustments
 3. **Monitoring**: Regular analysis without taking automated actions
 4. **Reporting**: Generate capacity reports across all namespaces
-
-## Future Enhancements
-
-- Implement intelligent TRU recommendation algorithm
-- Add historical data analysis
-- Include cost estimates in recommendations
-- Support for custom recommendation strategies
-- Export results to different formats (CSV, JSON, etc.)
