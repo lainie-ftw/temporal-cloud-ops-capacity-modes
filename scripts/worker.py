@@ -17,18 +17,15 @@ load_dotenv()
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
 from src.activities import (
-    check_throttling,
     disable_provisioning,
     enable_provisioning,
     get_all_namespace_metrics,
-    list_namespaces,
     send_slack_notification,
     verify_namespace_capacity,
 )
 from src.config import get_settings
 from src.workflows import (
     BulkCapacityAnalysisWorkflow,
-    CapacityManagementWorkflow,
     ScheduledCapacityChangeWorkflow,
 )
 
@@ -82,16 +79,13 @@ async def main():
         client,
         task_queue=settings.task_queue,
         workflows=[
-            CapacityManagementWorkflow,
             BulkCapacityAnalysisWorkflow,
             ScheduledCapacityChangeWorkflow,
         ],
         activities=[
-            check_throttling,
             disable_provisioning,
             enable_provisioning,
             get_all_namespace_metrics,
-            list_namespaces,
             send_slack_notification,
             verify_namespace_capacity,
         ],

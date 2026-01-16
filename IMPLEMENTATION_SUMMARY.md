@@ -78,15 +78,13 @@ This reduces response size by filtering at the API rather than client-side, impr
 - Simpler error handling (no multiple failure points)
 - Easier to test and reason about
 
-### Design Comparison
+### Workflow Features
 
-| Aspect | CapacityManagementWorkflow | BulkCapacityAnalysisWorkflow |
-|--------|---------------------------|------------------------------|
-| API Calls | N+1 | 1 |
-| Purpose | Automated provisioning | Analysis & planning |
-| Side Effects | Yes (enables/disables) | No (read-only) |
-| Complexity | High | Low |
-| Metrics | Throttling, actions/hour | Action limit, action count |
+The `BulkCapacityAnalysisWorkflow` is a read-only workflow that:
+- **Makes a single API call** to fetch metrics for all namespaces
+- **Analyzes capacity** across all namespaces efficiently
+- **Generates recommendations** without taking any provisioning actions
+- **Significantly reduces** API latency and rate limit concerns
 
 ## Usage
 
@@ -160,7 +158,5 @@ The following areas are marked for future enhancement:
 ## Validation
 
 ✅ All code compiles without errors
-✅ No changes made to src/workflows/capacity_management.py (as requested)
-✅ Both workflows can coexist and run independently
-✅ Worker configured to handle both workflows
+✅ Worker configured to handle workflows
 ✅ Documentation provided

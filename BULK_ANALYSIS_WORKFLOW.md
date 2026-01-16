@@ -1,20 +1,10 @@
 # Bulk Capacity Analysis Workflow
 
-This document describes the new `BulkCapacityAnalysisWorkflow`, which provides a different design approach compared to the existing `CapacityManagementWorkflow`.
+This document describes the `BulkCapacityAnalysisWorkflow`, which analyzes capacity across all namespaces efficiently using a single API call to the Metrics API.
 
 ## Overview
 
 The `BulkCapacityAnalysisWorkflow` is a read-only workflow that analyzes capacity across all namespaces efficiently using a single API call to the Metrics API.
-
-## Key Differences from CapacityManagementWorkflow
-
-| Feature | CapacityManagementWorkflow | BulkCapacityAnalysisWorkflow |
-|---------|---------------------------|------------------------------|
-| **API Calls** | N+1 calls (1 for list + N for each namespace) | 1 call (fetches all namespace metrics at once) |
-| **Actions** | Takes provisioning actions (enable/disable) | Read-only, no provisioning actions |
-| **Metrics** | Fetches throttling metrics | Fetches action_limit and action_count |
-| **Output** | WorkflowResult with actions taken | List of NamespaceRecommendation |
-| **Purpose** | Automated capacity management | Capacity planning and analysis |
 
 ## Workflow Design
 
@@ -75,15 +65,15 @@ for recommendation in result:
 
 ## Worker Configuration
 
-The worker must be configured to handle both workflows. Update `scripts/worker.py`:
+The worker must be configured to handle this workflow. Update `scripts/worker.py`:
 
 ```python
-from src.workflows import CapacityManagementWorkflow, BulkCapacityAnalysisWorkflow
+from src.workflows import BulkCapacityAnalysisWorkflow
 
 worker = Worker(
     client,
     task_queue=settings.temporal_task_queue,
-    workflows=[CapacityManagementWorkflow, BulkCapacityAnalysisWorkflow],
+    workflows=[BulkCapacityAnalysisWorkflow],
     activities=[...],
 )
 ```
