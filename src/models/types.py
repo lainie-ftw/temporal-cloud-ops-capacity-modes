@@ -55,48 +55,6 @@ class NamespaceMetrics:
 
 
 @dataclass
-class ActionDecision:
-    """Decision about what action to take for a namespace."""
-
-    namespace: str
-    action: str  # "enable", "disable", or "none"
-    reason: str
-    current_state: ProvisioningState
-    metrics: Optional[NamespaceMetrics] = None
-    tru_count: Optional[int] = None
-
-    def __str__(self) -> str:
-        """String representation."""
-        if self.action == "none":
-            return f"[{self.namespace}] No action: {self.reason}"
-        elif self.action == "enable":
-            return f"[{self.namespace}] Enable with {self.tru_count} TRUs: {self.reason}"
-        elif self.action == "disable":
-            return f"[{self.namespace}] Disable: {self.reason}"
-        return f"[{self.namespace}] {self.action}: {self.reason}"
-
-
-@dataclass
-class WorkflowResult:
-    """Result of a workflow execution."""
-
-    total_namespaces_checked: int
-    namespaces_enabled: list[str]
-    namespaces_disabled: list[str]
-    errors: list[str]
-    decisions: list[ActionDecision]
-    dry_run: bool = False
-
-    def __str__(self) -> str:
-        """String representation."""
-        mode = "[DRY RUN] " if self.dry_run else ""
-        enabled_str = f"Enabled: {len(self.namespaces_enabled)}"
-        disabled_str = f"Disabled: {len(self.namespaces_disabled)}"
-        error_str = f"Errors: {len(self.errors)}"
-        return f"{mode}Checked {self.total_namespaces_checked} namespaces - {enabled_str}, {disabled_str}, {error_str}"
-
-
-@dataclass
 class NamespaceRecommendation:
     """Recommendation for a namespace with action metrics and TRU recommendation."""
 

@@ -1,19 +1,21 @@
 """Data models for capacity management."""
 
 from .types import (
-    ActionDecision,
     NamespaceInfo,
     NamespaceMetrics,
+    NamespaceRecommendation,
     NotificationSeverity,
     ProvisioningState,
-    WorkflowResult,
+    ScheduledCapacityChangeInput,
+    ScheduledCapacityChangeResult,
 )
 
 __all__ = [
-    "ActionDecision",
     "NamespaceInfo",
     "NamespaceMetrics",
+    "NamespaceRecommendation",
     "NotificationSeverity",
     "ProvisioningState",
-    "WorkflowResult",
+    "ScheduledCapacityChangeInput",
+    "ScheduledCapacityChangeResult",
 ]
